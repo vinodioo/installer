@@ -1,67 +1,241 @@
 {
-  "name": "YouTube Video Automation",
+  "name": "Weekly Storytelling Automation",
   "nodes": [
     {
       "parameters": {
-        "cronExpression": "0 9 * * 1,3,5"
+        "cronExpression": "0 3 * * 0"
       },
-      "name": "Schedule Shorts",
+      "name": "Weekly Schedule",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
       "position": [100, 100]
     },
     {
       "parameters": {
-        "cronExpression": "0 9 * * 0"
+        "method": "POST",
+        "url": "http://localhost:8080/v1/generate",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "mixtral-7b"
+            },
+            {
+              "name": "input",
+              "value": "Generate 7 unique scripts (no repeats from previous): 3 YouTube 60s Shorts with 3-5 word hooks, 3 beats, call-to-action, and suggested background (e.g., forest), caption animation; 2 YouTube 30-40m long-form videos with 5 mini-cliffhangers, 30-60s teaser, background suggestion, caption animation; 5 Instagram Reels (15-60s) with hooks, calls-to-action, background suggestion, caption animation. Include good video effects (e.g., fade, zoom). Output JSON: {youtubeShorts[{title, description, tags[], script, caption, background, effects}], youtubeLong[{title, description, tags[], sections[{timestamp, heading, text}], fullScript, teaserScript, caption, background, effects}], instagramReels[{title, description, tags[], script, caption, background, effects}]}"
+            }
+          ]
+        }
       },
-      "name": "Schedule Long Video",
-      "type": "n8n-nodes-base.cron",
-      "typeVersion": 1,
-      "position": [100, 200]
-    },
-    {
-      "parameters": {
-        "prompt": "Generate a 30-second YouTube Shorts script about mobile accessories or cricket highlights.",
-        "model": "gpt-3.5-turbo" // Placeholder; replace with your chosen AI model
-      },
-      "name": "Generate Script",
-      "type": "n8n-nodes-base.ai",
+      "name": "Generate Scripts",
+      "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 1,
       "position": [300, 100]
     },
     {
       "parameters": {
-        "text": "{{$node['Generate Script'].json['script']}}",
-        "output": "output.mp3"
+        "text": "{{$node['Generate Scripts'].json['responseData']['output'][0]['data'][0]['text']['youtubeShorts'][0]['script']}}",
+        "output": "output_short1.mp3"
       },
-      "name": "Text-to-Speech",
+      "name": "Short1 Text-to-Speech",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [500, 100],
-      "executeCommand": "ffmpeg -i input.wav -c:a mp3 output.mp3" // Placeholder
+      "executeCommand": "ffmpeg -i input.wav -c:a mp3 output_short1.mp3"
     },
     {
       "parameters": {
-        "command": "ffmpeg -i input.mp4 -i output.mp3 -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 final-video.mp4"
+        "text": "{{$node['Generate Scripts'].json['responseData']['output'][0]['data'][0]['text']['youtubeShorts'][1]['script']}}",
+        "output": "output_short2.mp3"
       },
-      "name": "Combine Video and Audio",
+      "name": "Short2 Text-to-Speech",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 150],
+      "executeCommand": "ffmpeg -i input.wav -c:a mp3 output_short2.mp3"
+    },
+    {
+      "parameters": {
+        "text": "{{$node['Generate Scripts'].json['responseData']['output'][0]['data'][0]['text']['youtubeShorts'][2]['script']}}",
+        "output": "output_short3.mp3"
+      },
+      "name": "Short3 Text-to-Speech",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 200],
+      "executeCommand": "ffmpeg -i input.wav -c:a mp3 output_short3.mp3"
+    },
+    {
+      "parameters": {
+        "text": "{{$node['Generate Scripts'].json['responseData']['output'][0]['data'][0]['text']['youtubeLong'][0]['fullScript']}}",
+        "output": "output_long1.mp3"
+      },
+      "name": "Long1 Text-to-Speech",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "executeCommand": "ffmpeg -i input.wav -c:a mp3 output_long1.mp3"
+    },
+    {
+      "parameters": {
+        "text": "{{$node['Generate Scripts'].json['responseData']['output'][0]['data'][0]['text']['youtubeLong'][1]['fullScript']}}",
+        "output": "output_long2.mp3"
+      },
+      "name": "Long2 Text-to-Speech",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 350],
+      "executeCommand": "ffmpeg -i input.wav -c:a mp3 output_long2.mp3"
+    },
+    {
+      "parameters": {
+        "command": "for i in {0..4}; do echo '{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"instagramReels\"][$i][\"script\"]}}' | ffmpeg -i input.wav -c:a mp3 /home/node/.n8n/reel$i.mp3; done"
+      },
+      "name": "Reels Text-to-Speech",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -i <(find /home/inodvinod/storymaster/clips -name '*{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][0][\"background\"]}}*.mp4' | head -n 4 | sed 's/.*/file \"&\"/' ) -i /home/node/.n8n/output_short1.mp3 -vf \"{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][0][\"effects\"]}} , drawtext=text='{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][0][\"caption\"]}}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-(2*lh):enable='between(t,0,60)'\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 /home/node/.n8n/short1_final.mp4"
+      },
+      "name": "Short1 Combine Video and Audio",
       "type": "n8n-nodes-base.executeCommand",
       "typeVersion": 1,
       "position": [700, 100]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -i <(find /home/inodvinod/storymaster/clips -name '*{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][1][\"background\"]}}*.mp4' | head -n 4 | sed 's/.*/file \"&\"/' ) -i /home/node/.n8n/output_short2.mp3 -vf \"{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][1][\"effects\"]}} , drawtext=text='{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][1][\"caption\"]}}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-(2*lh):enable='between(t,0,60)'\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 /home/node/.n8n/short2_final.mp4"
+      },
+      "name": "Short2 Combine Video and Audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 150]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -i <(find /home/inodvinod/storymaster/clips -name '*{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][2][\"background\"]}}*.mp4' | head -n 4 | sed 's/.*/file \"&\"/' ) -i /home/node/.n8n/output_short3.mp3 -vf \"{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][2][\"effects\"]}} , drawtext=text='{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][2][\"caption\"]}}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-(2*lh):enable='between(t,0,60)'\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 /home/node/.n8n/short3_final.mp4"
+      },
+      "name": "Short3 Combine Video and Audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 200]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -i <(find /home/inodvinod/storymaster/clips -name '*{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeLong\"][0][\"background\"]}}*.mp4' | head -n 12 | sed 's/.*/file \"&\"/' ) -i /home/node/.n8n/output_long1.mp3 -vf \"{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeLong\"][0][\"effects\"]}} , drawtext=text='{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeLong\"][0][\"caption\"]}}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-(2*lh):enable='between(t,0,2400)'\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 /home/node/.n8n/long1_final.mp4"
+      },
+      "name": "Long1 Combine Video and Audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "command": "ffmpeg -i <(find /home/inodvinod/storymaster/clips -name '*{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeLong\"][1][\"background\"]}}*.mp4' | head -n 12 | sed 's/.*/file \"&\"/' ) -i /home/node/.n8n/output_long2.mp3 -vf \"{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeLong\"][1][\"effects\"]}} , drawtext=text='{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeLong\"][1][\"caption\"]}}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-(2*lh):enable='between(t,0,2400)'\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 /home/node/.n8n/long2_final.mp4"
+      },
+      "name": "Long2 Combine Video and Audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 350]
+    },
+    {
+      "parameters": {
+        "command": "for i in {0..4}; do ffmpeg -i <(find /home/inodvinod/storymaster/clips -name '*{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"instagramReels\"][$i][\"background\"]}}*.mp4' | head -n 2 | sed 's/.*/file \"&\"/' ) -i /home/node/.n8n/reel$i.mp3 -vf \"{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"instagramReels\"][$i][\"effects\"]}} , drawtext=text='{{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"instagramReels\"][$i][\"caption\"]}}':fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf:fontsize=18:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-(2*lh):enable='between(t,0,60)'\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 /home/node/.n8n/reel$i_final.mp4; done"
+      },
+      "name": "Reels Combine Video and Audio",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "command": "mkdir -p /mnt/c/Users/Vinod/ && cp /home/node/.n8n/short{1,2,3}_final.mp4 /home/node/.n8n/long{1,2}_final.mp4 /mnt/c/Users/Vinod/"
+      },
+      "name": "Copy YouTube Videos",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [900, 100]
+    },
+    {
+      "parameters": {
+        "command": "mkdir -p /mnt/c/Users/Vinod/instagram/ && cp /home/node/.n8n/reel{0,1,2,3,4}_final.mp4 /mnt/c/Users/Vinod/instagram/"
+      },
+      "name": "Copy Reels",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "toEmail": "your.email@example.com",
+        "subject": "Weekly Storytelling Newsletter",
+        "text": "Weekly Update:\n- YouTube: {{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeShorts\"][0][\"title\"]}, {{$node[\"Generate Scripts\"].json[\"responseData\"][\"output\"][0][\"data\"][0][\"text\"][\"youtubeLong\"][0][\"title\"]]}\n- Reels: 5 new stories\nView at: C:\\Users\\Vinod"
+      },
+      "name": "Send Newsletter",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [900, 500]
     }
   ],
   "connections": {
-    "Schedule Shorts": {
-      "main": [[{"node": "Generate Script", "type": "main", "index": 0}]]
+    "Weekly Schedule": {
+      "main": [[{"node": "Generate Scripts", "type": "main", "index": 0}]]
     },
-    "Schedule Long Video": {
-      "main": [[{"node": "Generate Script", "type": "main", "index": 0}]]
+    "Generate Scripts": {
+      "main": [
+        [{"node": "Short1 Text-to-Speech", "type": "main", "index": 0}],
+        [{"node": "Short2 Text-to-Speech", "type": "main", "index": 1}],
+        [{"node": "Short3 Text-to-Speech", "type": "main", "index": 2}],
+        [{"node": "Long1 Text-to-Speech", "type": "main", "index": 3}],
+        [{"node": "Long2 Text-to-Speech", "type": "main", "index": 4}],
+        [{"node": "Reels Text-to-Speech", "type": "main", "index": 5}]
+      ]
     },
-    "Generate Script": {
-      "main": [[{"node": "Text-to-Speech", "type": "main", "index": 0}]]
+    "Short1 Text-to-Speech": {
+      "main": [[{"node": "Short1 Combine Video and Audio", "type": "main", "index": 0}]]
     },
-    "Text-to-Speech": {
-      "main": [[{"node": "Combine Video and Audio", "type": "main", "index": 0}]]
+    "Short2 Text-to-Speech": {
+      "main": [[{"node": "Short2 Combine Video and Audio", "type": "main", "index": 0}]]
+    },
+    "Short3 Text-to-Speech": {
+      "main": [[{"node": "Short3 Combine Video and Audio", "type": "main", "index": 0}]]
+    },
+    "Long1 Text-to-Speech": {
+      "main": [[{"node": "Long1 Combine Video and Audio", "type": "main", "index": 0}]]
+    },
+    "Long2 Text-to-Speech": {
+      "main": [[{"node": "Long2 Combine Video and Audio", "type": "main", "index": 0}]]
+    },
+    "Reels Text-to-Speech": {
+      "main": [[{"node": "Reels Combine Video and Audio", "type": "main", "index": 0}]]
+    },
+    "Short1 Combine Video and Audio": {
+      "main": [[{"node": "Copy YouTube Videos", "type": "main", "index": 0}]]
+    },
+    "Short2 Combine Video and Audio": {
+      "main": [[{"node": "Copy YouTube Videos", "type": "main", "index": 1}]]
+    },
+    "Short3 Combine Video and Audio": {
+      "main": [[{"node": "Copy YouTube Videos", "type": "main", "index": 2}]]
+    },
+    "Long1 Combine Video and Audio": {
+      "main": [[{"node": "Copy YouTube Videos", "type": "main", "index": 3}]]
+    },
+    "Long2 Combine Video and Audio": {
+      "main": [[{"node": "Copy YouTube Videos", "type": "main", "index": 4}]]
+    },
+    "Reels Combine Video and Audio": {
+      "main": [[{"node": "Copy Reels", "type": "main", "index": 0}]]
+    },
+    "Copy YouTube Videos": {
+      "main": [[{"node": "Send Newsletter", "type": "main", "index": 0}]]
+    },
+    "Copy Reels": {
+      "main": [[{"node": "Send Newsletter", "type": "main", "index": 1}]]
     }
   }
 }
